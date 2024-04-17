@@ -1,0 +1,155 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 750px;
+                 background-color: #222222;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-pots-005", "label": "sim-consonancia-pots-005", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-pots-002", "label": "sim-consonancia-pots-002", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-pots-004", "label": "sim-consonancia-pots-004", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-pots-001", "label": "sim-consonancia-pots-001", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-chronic_hip_pain-002", "label": "sim-consonancia-chronic_hip_pain-002", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-arthritis-004", "label": "sim-consonancia-arthritis-004", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-arthritis-003", "label": "sim-consonancia-arthritis-003", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-pots-006", "label": "sim-consonancia-pots-006", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-chronic_hip_pain-001", "label": "sim-consonancia-chronic_hip_pain-001", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-arthritis-006", "label": "sim-consonancia-arthritis-006", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-disc_hernia-005", "label": "sim-consonancia-disc_hernia-005", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-disc_hernia-001", "label": "sim-consonancia-disc_hernia-001", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-chronic_hip_pain-005", "label": "sim-consonancia-chronic_hip_pain-005", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-disc_hernia-004", "label": "sim-consonancia-disc_hernia-004", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-disc_hernia-002", "label": "sim-consonancia-disc_hernia-002", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-disc_hernia-006", "label": "sim-consonancia-disc_hernia-006", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-arthritis-001", "label": "sim-consonancia-arthritis-001", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-chronic_hip_pain-003", "label": "sim-consonancia-chronic_hip_pain-003", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-arthritis-005", "label": "sim-consonancia-arthritis-005", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-chronic_hip_pain-004", "label": "sim-consonancia-chronic_hip_pain-004", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-breakup-003", "label": "sim-consonancia-breakup-003", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-breakup-002", "label": "sim-consonancia-breakup-002", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "sim-consonancia-arthritis-002", "label": "sim-consonancia-arthritis-002", "shape": "dot", "size": 10}]);
+                  edges = new vis.DataSet([{"from": "sim-consonancia-pots-005", "to": "sim-consonancia-pots-002", "width": 5.094577016630107}, {"from": "sim-consonancia-pots-005", "to": "sim-consonancia-pots-004", "width": 3.606811663453493}, {"from": "sim-consonancia-pots-005", "to": "sim-consonancia-pots-001", "width": 5.0441166202017556}, {"from": "sim-consonancia-pots-002", "to": "sim-consonancia-pots-001", "width": 4.360046214310839}, {"from": "sim-consonancia-pots-004", "to": "sim-consonancia-chronic_hip_pain-002", "width": 25.0773850649078}, {"from": "sim-consonancia-pots-004", "to": "sim-consonancia-arthritis-004", "width": 18.985589618125857}, {"from": "sim-consonancia-pots-004", "to": "sim-consonancia-arthritis-003", "width": 3.7865026472389203}, {"from": "sim-consonancia-pots-004", "to": "sim-consonancia-pots-001", "width": 4.585427288408897}, {"from": "sim-consonancia-pots-006", "to": "sim-consonancia-chronic_hip_pain-001", "width": 4.287137894186275}, {"from": "sim-consonancia-pots-006", "to": "sim-consonancia-arthritis-006", "width": 3.69815334833944}, {"from": "sim-consonancia-pots-006", "to": "sim-consonancia-disc_hernia-005", "width": 3.388526734860164}, {"from": "sim-consonancia-pots-006", "to": "sim-consonancia-disc_hernia-001", "width": 3.587551101093769}, {"from": "sim-consonancia-chronic_hip_pain-001", "to": "sim-consonancia-chronic_hip_pain-005", "width": 3.7873728418015733}, {"from": "sim-consonancia-chronic_hip_pain-001", "to": "sim-consonancia-disc_hernia-004", "width": 3.812223443657168}, {"from": "sim-consonancia-chronic_hip_pain-001", "to": "sim-consonancia-disc_hernia-005", "width": 5.071431237989763}, {"from": "sim-consonancia-chronic_hip_pain-001", "to": "sim-consonancia-disc_hernia-002", "width": 8.156177932403894}, {"from": "sim-consonancia-chronic_hip_pain-001", "to": "sim-consonancia-disc_hernia-006", "width": 3.5920976505991025}, {"from": "sim-consonancia-chronic_hip_pain-001", "to": "sim-consonancia-arthritis-001", "width": 5.295515071994394}, {"from": "sim-consonancia-arthritis-006", "to": "sim-consonancia-chronic_hip_pain-005", "width": 3.672783838354735}, {"from": "sim-consonancia-arthritis-006", "to": "sim-consonancia-chronic_hip_pain-003", "width": Infinity}, {"from": "sim-consonancia-disc_hernia-005", "to": "sim-consonancia-arthritis-005", "width": 3.5439944842789393}, {"from": "sim-consonancia-disc_hernia-005", "to": "sim-consonancia-disc_hernia-002", "width": 5.013981872395558}, {"from": "sim-consonancia-disc_hernia-001", "to": "sim-consonancia-chronic_hip_pain-005", "width": 4.207084605395407}, {"from": "sim-consonancia-disc_hernia-001", "to": "sim-consonancia-disc_hernia-004", "width": 3.5064077230923467}, {"from": "sim-consonancia-chronic_hip_pain-002", "to": "sim-consonancia-arthritis-004", "width": 19.4488981186434}, {"from": "sim-consonancia-chronic_hip_pain-002", "to": "sim-consonancia-chronic_hip_pain-005", "width": 3.552488610330858}, {"from": "sim-consonancia-chronic_hip_pain-002", "to": "sim-consonancia-disc_hernia-004", "width": 6.1818459053726595}, {"from": "sim-consonancia-chronic_hip_pain-002", "to": "sim-consonancia-arthritis-003", "width": 5.4448197516030215}, {"from": "sim-consonancia-arthritis-004", "to": "sim-consonancia-disc_hernia-004", "width": 3.681879175010434}, {"from": "sim-consonancia-arthritis-004", "to": "sim-consonancia-arthritis-003", "width": 3.6075616222666955}, {"from": "sim-consonancia-chronic_hip_pain-005", "to": "sim-consonancia-arthritis-005", "width": 4.504710089543429}, {"from": "sim-consonancia-chronic_hip_pain-005", "to": "sim-consonancia-disc_hernia-004", "width": 4.902858584358221}, {"from": "sim-consonancia-chronic_hip_pain-005", "to": "sim-consonancia-chronic_hip_pain-003", "width": 3.773875993398727}, {"from": "sim-consonancia-chronic_hip_pain-005", "to": "sim-consonancia-chronic_hip_pain-004", "width": 3.575445641177818}, {"from": "sim-consonancia-disc_hernia-004", "to": "sim-consonancia-arthritis-005", "width": 3.6657035857822824}, {"from": "sim-consonancia-disc_hernia-004", "to": "sim-consonancia-arthritis-003", "width": 3.46847202511148}, {"from": "sim-consonancia-disc_hernia-004", "to": "sim-consonancia-disc_hernia-006", "width": 3.9325823876724963}, {"from": "sim-consonancia-disc_hernia-004", "to": "sim-consonancia-arthritis-001", "width": 4.02844084204502}, {"from": "sim-consonancia-disc_hernia-004", "to": "sim-consonancia-chronic_hip_pain-004", "width": 4.3249908375657675}, {"from": "sim-consonancia-arthritis-003", "to": "sim-consonancia-chronic_hip_pain-004", "width": 3.4722516647199915}, {"from": "sim-consonancia-breakup-003", "to": "sim-consonancia-breakup-002", "width": 5.113242322478566}, {"from": "sim-consonancia-disc_hernia-002", "to": "sim-consonancia-disc_hernia-006", "width": 3.442583625213513}, {"from": "sim-consonancia-disc_hernia-002", "to": "sim-consonancia-arthritis-001", "width": 3.8955928363007675}, {"from": "sim-consonancia-arthritis-005", "to": "sim-consonancia-arthritis-002", "width": 3.7551343175033063}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>

@@ -119,9 +119,9 @@ async def simulate_conversation(
 
 
 async def main():
-    platform_id = "svaeva-redux"
-    group_id = "consonancia"
-    conversation_id = "sim-consonancia"
+    platform_id = os.getenv("PLATFORM_ID")  # "svaeva-redux"
+    group_id = os.getenv("GROUP_ID")  # "consonancia"
+    conversation_id = os.getenv("CONVERSATION_ID")  # "sim-consonancia"
 
     model = "gpt-4-0125-preview"
     temperature = 0.7

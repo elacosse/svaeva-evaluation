@@ -33,7 +33,7 @@ classifiers = [  #! Update me
 "svaeva-evaluation" = "svaeva_evaluation.__main__:app"
 
 [tool.poetry.dependencies]
-svaeva-redux = { git = "https://github.com/elacosee/svaeva-redux.git", branch = "main" }
+svaeva-redux = { git = "https://github.com/elacosse/svaeva-redux.git", branch = "master" }
 python = "^3.11.4"
 typer = {extras = ["all"], version = "^0.9.0"}
 python-dotenv = "^1.0.1"
