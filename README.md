@@ -44,29 +44,17 @@ INTERACTION_COUNT=0
 
 ### Initialize your code
 
-1. Initialize `git` inside your repo:
-
-```bash
-cd svaeva-evaluation && git init
-```
-
-2. If you don't have `Poetry` installed run:
+1. If you don't have `Poetry` installed run:
 
 ```bash
 make poetry-download
 ```
 
-3. Initialize poetry and install `pre-commit` hooks:
+2. Initialize poetry and install:
 
 ```bash
 make install
-make pre-commit-install
-```
 
-4. Run the codestyle:
-
-```bash
-make codestyle
 ```
 
 ## 🚀 Usage
@@ -76,7 +64,9 @@ make codestyle
 Easily and asynchronously generate sample conversation data to appropriately store in the database to play with.
 (Note: svaeva-redux platform must be up and running!)
 
-```bash python svaeva_evaluation/simulation/consonancia.py```
+```bash
+python svaeva_evaluation/simulation/consonancia.py
+```
 
 ##### Retrieve most connected user and save their conversation to  ```data/conversations/best_node_conversation.txt```
 
@@ -110,17 +100,7 @@ svaeva-evaluation plot
 ![tsne](assets/images/tSNE_embeddings.png)
 ###### PCA Embeddings 3D Projection
 ![edge](assets/images/PCA_Embeddings.png)
-## Installation
 
-```bash
-pip install -U svaeva-evaluation
-```
-
-or install with `Poetry`
-
-```bash
-poetry add svaeva-evaluation
-```
 
 ### Makefile usage
 
