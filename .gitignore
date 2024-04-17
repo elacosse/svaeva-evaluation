@@ -621,7 +621,6 @@ MigrationBackup/
 
 # 
 lib
-notebooks/
 data/audio/*
 data/conversations/*
 data/network/*
