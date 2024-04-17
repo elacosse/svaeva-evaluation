@@ -99,7 +99,7 @@ svaeva-evaluation plot
 ###### t-SNE Embeddings
 ![tsne](assets/images/tSNE_embeddings.png)
 ###### PCA Embeddings 3D Projection
-![edge](assets/images/PCA_Embeddings.png)
+![edge](assets/images/PCA_embeddings.png)
 
 
 ### Makefile usage
