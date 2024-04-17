@@ -80,7 +80,7 @@ svaeva-evaluation select
 svaeva-evaluation network
 ```
 
-<iframe src="https://github.com/elacosse/svaeva-redux/assets/network.html" width="100%" height="500px"></iframe>
+<iframe src="https://github.com/elacosse/svaeva-evaluation/blob/master/assets/network.html" width="100%" height="500px"></iframe>
 
 
 ##### Get most connected users's audio generation and save to  ```data/audio/*```
