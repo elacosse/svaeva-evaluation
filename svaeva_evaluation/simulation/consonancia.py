@@ -92,13 +92,15 @@ async def simulate_conversation(
 
     user = UserModel(id=user_id, group_id=group_id, platform_id=platform_id)
     user.save()
-    chat = RemoteRunnable("http://0.0.0.0:8000/", cookies={"user_id": user_id})
+    chat = RemoteRunnable(
+        f"http://{os.getenv('LANGSERVE_HOST')}:{os.getenv('LANGSERVE_PORT')}/", cookies={"user_id": user_id}
+    )
     response = await chat.ainvoke(
         {"human_input": initial_interviewee_message},
         config={"configurable": {"user_id": user_id, "conversation_id": conversation_id, "platform_id": platform_id}},
     )
     chat_message_history.add_user_message(initial_interviewee_message)
-    chat_message_history.add_ai_message(response["content"])
+    chat_message_history.add_ai_message(response.content)
     # simulate conversation
     for i in range(iterations):
         # interviewee
@@ -113,7 +115,7 @@ async def simulate_conversation(
                 "configurable": {"user_id": user_id, "conversation_id": conversation_id, "platform_id": platform_id}
             },
         )
-        chat_message_history.add_ai_message(response["content"])
+        chat_message_history.add_ai_message(response.content)
         # logger.info("AI: " + response.content)
     # logger.info(chat_message_history)
 
@@ -136,31 +138,31 @@ async def main():
     prompts["chronic_hip_pain"] = chronic_hip_pain
     prompts["pots"] = pots
     prompts["breakup"] = breakup
-    iterations = 6
+    # iterations = 6
 
-    tasks = []
-    for key, value in prompts.items():
-        condition = key
-        system_prompt = value
-        for i in range(1, 7):
-            user_id = f"sim-consonancia-{condition}-{str(i).zfill(3)}"
-            logger.info(f"Starting conversation for user: {user_id}")
-            task = simulate_conversation(
-                initial_interviewee_message,
-                iterations,
-                system_prompt,
-                llm,
-                user_id,
-                conversation_id,
-                platform_id,
-                group_id,
-            )
-            tasks.append(task)
-    logger.info("Waiting for all conversations to finish")
+    # tasks = []
+    # for key, value in prompts.items():
+    #     condition = key
+    #     system_prompt = value
+    #     for i in range(2, 7):
+    #         user_id = f"sim-consonancia-{condition}-{str(i).zfill(3)}"
+    #         logger.info(f"Starting conversation for user: {user_id}")
+    #         task = simulate_conversation(
+    #             initial_interviewee_message,
+    #             iterations,
+    #             system_prompt,
+    #             llm,
+    #             user_id,
+    #             conversation_id,
+    #             platform_id,
+    #             group_id,
+    #         )
+    #         tasks.append(task)
+    # logger.info("Waiting for all conversations to finish")
 
-    await asyncio.gather(*tasks)
+    # await asyncio.gather(*tasks)
 
-    logger.info("All conversations finished")
+    # logger.info("All conversations finished")
 
     logger.info("Computing conversation embeddings and updating users")
     key_prefix = f"{platform_id}_{conversation_id}:"

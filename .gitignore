@@ -619,10 +619,9 @@ MigrationBackup/
 # .env
 .env
 
-# 
-lib
-data/audio/*
-data/conversations/*
-data/network/*
-data/plots/*
+# data
+data/audio/*.mp3
+data/conversations/*.txt
+data/network/*.html
+data/plots/*.png
 data/raw/*
