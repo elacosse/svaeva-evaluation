@@ -630,5 +630,5 @@ data/conversations/*/
 data/network/*
 data/plots/*
 data/raw/*
-data/images/*.
+data/images/*
 data/videos/*
