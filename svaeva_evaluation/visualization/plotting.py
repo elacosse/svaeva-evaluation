@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from svaeva_redux.schemas.redis import UserModel
+from svaeva_redux.schemas.redis import UserImageModel, UserModel
 
 RANDOM_SEED = 42
 
@@ -125,13 +125,20 @@ def plot_edge_distribution(distances: List[dict]):
     return fig
 
 
-def return_circle_cropped_image_from_user(user: UserModel) -> Image.Image:
+def return_image_from_user(user: UserModel, crop=False) -> Image.Image:
     """Return a circle cropped image from a user object"""
-    image = Image.open(io.BytesIO(base64.b64decode(user.avatar_image_bytes)))
-    image = np.array(image)
-    h, w = image.shape[:2]
-    mask = np.zeros((h, w), dtype=np.uint8)
-    cv2.circle(mask, (w // 2, h // 2), int(0.45 * h), 255, -1)
-    result = cv2.bitwise_and(image, image, mask=mask)
-    image = Image.fromarray(result)
-    return image
+
+    try:
+        user_image = UserImageModel.get(user.id)
+        image = Image.open(io.BytesIO(base64.b64decode(user_image.avatar_image_bytes)))
+        if crop:
+            image = np.array(image)
+            h, w = image.shape[:2]
+            mask = np.zeros((h, w), dtype=np.uint8)
+            cv2.circle(mask, (w // 2, h // 2), int(0.45 * h), 255, -1)
+            result = cv2.bitwise_and(image, image, mask=mask)
+            image = Image.fromarray(result)
+        return image
+    except Exception as e:
+        print(f"Error: {e}")
+        return None

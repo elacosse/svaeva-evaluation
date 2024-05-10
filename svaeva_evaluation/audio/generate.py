@@ -2,6 +2,7 @@
 import asyncio
 import os
 import re
+from pathlib import Path
 
 import dotenv
 from elevenlabs import save
@@ -22,7 +23,7 @@ async def async_generate(
     similarity_boost: float = 0.5,
     style: float = 0.0,
     use_speaker_boost: bool = True,
-    save_path: str = None,
+    save_path: Path = None,
 ) -> None:
     # models = await eleven.models.get_all()
     # print(models)
@@ -46,13 +47,11 @@ async def async_generate(
         save(out, save_path)
 
 
-async def async_generate_audio_from_list(texts: list, voice_id: str, filename_prefix: str = "output"):
+async def async_generate_audio_from_list(texts: list, voice_id: str, marker: str, save_dir: Path):
     tasks = []
     # get root path
-    root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     for i, text in enumerate(texts):
-        filename = f"{filename_prefix}_{str(i)}.mp3"
-        save_path = os.path.join(root_path, "data/audio", filename)
+        save_path = save_dir / f"{i}_{marker}.mp3"
         task = async_generate(text, voice_id, save_path=save_path)
         tasks.append(task)
         if i % 5 == 0:  # Limit the number of concurrent tasks (hard limit for ElevenLabs API)

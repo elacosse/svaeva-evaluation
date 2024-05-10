@@ -107,7 +107,7 @@ def generate_network_from_edges(edges: List[dict]) -> nx.Graph:
     return G
 
 
-def select_best_connected_node(edges: List[dict]) -> str:
+def select_best_connected_nodes(edges: List[dict], num: int = 5) -> List[str]:
     """Select the best connected node.
 
     Args:
@@ -119,5 +119,6 @@ def select_best_connected_node(edges: List[dict]) -> str:
         best_node: str. The best connected node.
     """
     G = generate_network_from_edges(edges)
-    best_node = max(G.nodes, key=lambda x: len(list(nx.all_neighbors(G, x))))
-    return best_node
+    best_nodes = sorted(G.nodes, key=lambda x: len(list(nx.all_neighbors(G, x))), reverse=True)[:num]
+    # best_nodes = max(G.nodes, key=lambda x: len(list(nx.all_neighbors(G, x))))[:5]
+    return best_nodes

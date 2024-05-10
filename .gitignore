@@ -619,9 +619,16 @@ MigrationBackup/
 # .env
 .env
 
-# data
-data/audio/*.mp3
-data/conversations/*.txt
-data/network/*.html
-data/plots/*.png
+# notebooks
+notebooks/*.ipynb
+notebooks/*.py
+
+# except .gitkeep files
+!.gitkeep
+data/audio/*
+data/conversations/*/
+data/network/*
+data/plots/*
 data/raw/*
+data/images/*.
+data/videos/*

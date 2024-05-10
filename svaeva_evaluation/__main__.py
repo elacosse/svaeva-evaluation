@@ -1,43 +1,66 @@
 # type: ignore[attr-defined]
 import asyncio
+import datetime
 import os
 import re
+from pathlib import Path
+from typing import List
 
 import dotenv
 import numpy as np
+import redis
 import typer
 from pyvis.network import Network
 from rich.console import Console
+from typing_extensions import Annotated
 
-from svaeva_evaluation import version
 from svaeva_evaluation.audio.generate import async_generate_audio_from_list
 from svaeva_evaluation.conversation import retrieve_redis_windowed_chat_history_as_text
+from svaeva_evaluation.messaging import queue_message_to_user
 from svaeva_evaluation.network import (
     calculate_distances_between_users,
     generate_network_from_edges,
-    select_best_connected_node,
+    select_best_connected_nodes,
     threshold_distances,
 )
 from svaeva_evaluation.visualization.plotting import (
     plot_3d_pca_embeddings,
     plot_edge_distribution,
     plot_tSNE_embeddings,
-    return_circle_cropped_image_from_user,
+    return_image_from_user,
 )
+
+dotenv.load_dotenv()
+from svaeva_redux.schemas.redis import UserModel
+
+DEFAULT_MESSAGE = "This is Consonância. You're invited to enter the room of healing algorithms for something special. Please type or click with /iamready if you accept this invitation. You have 10 minutes to accept this invitation."
+platform_id = os.getenv("PLATFORM_ID")
+group_id = os.getenv("GROUP_ID")
+conversation_id = os.getenv("CONVERSATION_ID")
+root_path = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+key_prefix = f"{platform_id}_{conversation_id}:"
+
 
 app = typer.Typer(
     name="svaeva-evaluation",
-    help="`svaeva-evaluation` is a Python cli/package",
+    help="`svaeva-evaluation` is a Python cli/package to manage the ConsonâncIA installation",
     add_completion=False,
 )
 console = Console()
+console.log(f"Root path: {root_path}")
+console.log("[red]Redis Host[/]: " + os.environ["REDIS_HOST"])
+console.log("[red]Redis OM URL[/]: " + os.environ["REDIS_OM_URL"])
+console.log(f"[yellow]Group ID[/]: {group_id}")
+console.log(f"[yellow]Key Prefix[/]: {key_prefix}")
 
-
-def version_callback(print_version: bool) -> None:
-    """Print the version of the package."""
-    if print_version:
-        console.print(f"[yellow]svaeva-evaluation[/] version: [bold blue]{version}[/]")
-        raise typer.Exit()
+# make sure the redis connection is working
+try:
+    conn = redis.Redis(host=os.getenv("REDIS_HOST"), port=os.getenv("REDIS_PORT"), db=os.getenv("REDIS_DB_INDEX"))
+    conn.ping()
+    console.log("[red]Redis[/] connection [green]successful![/]")
+except Exception as e:
+    console.log(f"An error occurred: {e}")
+    raise typer.Exit()
 
 
 def extract_conversation_from_user(
@@ -48,7 +71,7 @@ def extract_conversation_from_user(
     from svaeva_redux.schemas.redis import UserModel
 
     try:
-        user = UserModel.get(user_id)
+        _ = UserModel.get(user_id)
     except Exception as e:
         console.log(f"An error occurred: {e}")
         return ""
@@ -68,25 +91,7 @@ def patternize_list(input_list):
     return pattern_list
 
 
-def construct_network(edges: list, edge_weights: list, root_path: str):
-    for edge in edges:  # normalize edge weights
-        edge["distance"] = (edge["distance"] - min(edge_weights)) / (max(edge_weights) - min(edge_weights))
-
-    network = Network(height="750px", width="100%", bgcolor="#222222", font_color="white")
-    nx_graph = generate_network_from_edges(edges)
-    network.from_nx(nx_graph)
-    save_path = os.path.join(root_path, "data/network", "network.html")
-    network.save_graph(save_path)
-    console.log(f"Saved network graph to: {save_path}")
-
-
-def select_node_from_network(edges: list):
-    best_node = select_best_connected_node(edges)
-    console.log(f"Best connected node: [green]{best_node}[/]")
-    return best_node
-
-
-async def generate_patternized_audio(conversation_text: str):
+async def generate_patternized_audio(conversation_text: str, save_dir: Path):
     from svaeva_evaluation.conversation import (
         construct_word_narrative_with_hurt,
         construct_word_narrative_without_hurt,
@@ -97,57 +102,67 @@ async def generate_patternized_audio(conversation_text: str):
     word_narrative_negative = construct_word_narrative_with_hurt(conversation_text)
     console.log(f"[red]Hurt narrative: {word_narrative_negative} [/]")
     list_text = patternize_list(word_narrative_positive)
-    await async_generate_audio_from_list(list_text, "Emily", "positive")
+    await async_generate_audio_from_list(list_text, "Emily", "positive", save_dir)
     list_text = patternize_list(word_narrative_negative)
-    await async_generate_audio_from_list(list_text, "Emily", "negative")
+    await async_generate_audio_from_list(list_text, "Emily", "negative", save_dir)
 
 
-@app.command(name="")
-def main(
-    command=typer.Argument(..., help="Available commands: 'plot' ."),
-    print_version: bool = typer.Option(
-        None,
-        "-v",
-        "--version",
-        callback=version_callback,
-        is_eager=True,
-        help="Prints the version of the svaeva-evaluation package.",
-    ),
-) -> None:
-    dotenv.load_dotenv()
-    platform_id = os.getenv("PLATFORM_ID")
-    group_id = os.getenv("GROUP_ID")
-    conversation_id = os.getenv("CONVERSATION_ID")
-    interaction_count = int(os.getenv("INTERACTION_COUNT", 2))
-    key_prefix = f"{platform_id}_{conversation_id}:"
+def construct_and_save_network(edges: list, edge_weights: list) -> Network:
+    for edge in edges:  # normalize edge weights
+        edge["distance"] = (edge["distance"] - min(edge_weights)) / (max(edge_weights) - min(edge_weights))
 
-    console.log(f"Command: {command}")
+    network = Network(height="750px", width="100%", bgcolor="#222222", font_color="white")
+    nx_graph = generate_network_from_edges(edges)
+    network.from_nx(nx_graph)
+    save_path = root_path / "data/network" / f"{group_id}-{platform_id}" / "network.html"
+    # Create the directory if it doesn't exist
+    if not os.path.exists(save_path.parent):
+        os.makedirs(save_path.parent)
+    network.save_graph(str(save_path))
+    console.log(f"[green]Saved[/] network visualization to: {save_path}")
+    # save network as a json
+    save_path = root_path / "data/network" / f"{group_id}-{platform_id}" / "network.json"
+    with open(save_path, "w") as f:
+        f.write(str(network))
+    console.log(f"[green]Saved[/] graph to: {save_path}")
 
-    root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    console.log(f"Root path: {root_path}")
 
-    console.log("Gathering Users from Redis...")
-    console.log("[red]Redis Host[/]: " + os.environ["REDIS_HOST"])
-    console.log("[red]Redis OM URL[/]: " + os.environ["REDIS_OM_URL"])
-    console.log(f"Group ID: {group_id}")
-    console.log(f"Key Prefix: {key_prefix}")
-    console.log(f"Interaction Count Filter: {interaction_count}")
-
-    from svaeva_redux.schemas.redis import UserModel
-
+def get_users(
+    group_id: str,
+    platform_id: str,
+    interaction_count: int = -1,
+    last_user_update_delta_seconds: float = -1,
+    upper_bound_users: int = -1,
+) -> List[UserModel]:
     users = UserModel.find(
         (UserModel.group_id == group_id)
         & (UserModel.platform_id == platform_id)
         & (UserModel.interaction_count >= interaction_count)
     ).all()
-    console.log(f"Number of users: {len(users)}")
+    if last_user_update_delta_seconds > 0:
+        time_lower_bound = datetime.now().timestamp() - last_user_update_delta_seconds
+        users = UserModel.find(
+            (UserModel.group_id == group_id)
+            & (UserModel.platform_id == platform_id)
+            & (UserModel.interaction_count >= interaction_count)
+            & (UserModel.date_updated_timestamp >= time_lower_bound)
+        ).all()
 
-    if command == "save-avatar-images":
-        console.log("Saving avatars...")
-        for user in users:
-            return_circle_cropped_image_from_user(user)
+    if upper_bound_users > 0:
+        users = sorted(users, key=lambda x: x.date_updated_timestamp, reverse=True)
+        users = users[:upper_bound_users]
+        # display last user update timestamp (how long?)
+        time_window = datetime.datetime.now().timestamp() - users[-1].date_updated_timestamp
+        # convert to datetime
+        time_window = datetime.timedelta(seconds=time_window)
+        console.log(f"[red]Time window[/] (days, seconds, microseconds): {time_window}")
+    console.log(f"Number of users retrieved: {len(users)}")
+    return users
 
+
+def compute_graph_from_users(users: List[UserModel]) -> List[dict]:
     console.log("Calculating distances between user conversation embeddings...")
+
     distances = calculate_distances_between_users(users)
 
     # select the lowest 10% of edge weights as threshold
@@ -163,54 +178,214 @@ def main(
     edges = threshold_distances(distances, threshold)
     console.log("Edges after thresholding: ", len(edges))  # n x n - n expected from simulation
     console.log("Percentage of edges kept: ", len(edges) / (len(distances) * len(distances[0]["distance"])) * 100)
+    return edges, edge_weights
 
-    if command == "network":
-        construct_network(edges, edge_weights, root_path)
 
-    if command == "select":
-        """Select the best connected node and save the conversation to a file."""
-        best_node = select_node_from_network(edges)
-        conversation_from_best_node = extract_conversation_from_user(best_node)
-        # Save the conversation to a file
-        save_path = os.path.join(root_path, "data/conversations", "best_node_conversation.txt")
+@app.command()
+def message(
+    user_id: Annotated[str, typer.Argument(help="user-id to select")],
+    user_message: Annotated[
+        str, typer.Option(..., "-m", "--message", help="message to send to user.")
+    ] = DEFAULT_MESSAGE,
+):
+    """Message a user by their user-id."""
+    try:
+        _ = UserModel.get(user_id)
+    except Exception as e:
+        console.log(f"An error occurred: {e}")
+        return
+    queue_message_to_user(user_id, user_message, "message_processing_queue")
+
+
+@app.command("display-by-rank")
+def display_by_rank(
+    number_of_users: Annotated[int, typer.Option("-n", "--number", help="number of users to display")] = 7,
+    delta_seconds: Annotated[int, typer.Option("-t", "--time", help="time window in seconds")] = -1,
+) -> None:
+    """Select the best connected node and save the conversation to a file by rank."""
+    if delta_seconds > 0:
+        console.log(f"Selecting users with last update within {delta_seconds} seconds...")
+    users = get_users(group_id, platform_id, last_user_update_delta_seconds=delta_seconds)
+    if len(users) > 1:
+        edges, _ = compute_graph_from_users(users)
+        best_nodes = select_best_connected_nodes(edges, num=number_of_users)
+        # display if user was flagged already
+        for i, node in enumerate(best_nodes):
+            user = UserModel.get(node)
+            console.print(f"{i+1}: {node} - {user.flagged}")
+    elif len(users) == 1:
+        user = users[0]
+        console.print(f"1: {user.id} - {user.flagged}")
+    else:
+        console.print("No users found!")
+
+
+@app.command()
+def select(
+    user_id: Annotated[str, typer.Argument(help="user-id to select")],
+) -> None:
+    """Select the user and do all the great things..."""
+
+    # Check if user is flagged (accepted invite)
+    try:
+        user = UserModel.get(user_id)
+    except Exception:
+        console.log(f"User-id [red]{user_id}[/] not found! Exiting...")
+        return
+    if not user.flagged:
+        console.log(f"User {user_id} is not flagged!")
+
+    # Save the conversation to a file
+    try:
+        save_path = root_path / "data/conversations" / f"{group_id}-{platform_id}" / "output.txt"
+        if not os.path.exists(save_path.parent):
+            os.makedirs(save_path.parent)
+        conversation = extract_conversation_from_user(user_id)
         with open(save_path, "w") as f:
-            f.write(conversation_from_best_node)
-        console.log(f"Saved conversation from best node to: {save_path}")
+            f.write(conversation)
+        console.log(f"Saved conversation from user {user_id} to: {save_path}")
+    except Exception as e:
+        console.log(e)
 
-    if command == "audio":
-        """Generate audio from the best connected node."""
-        console.log("Generating audio from word narrative...")
-        best_node = select_node_from_network(edges)
-        conversation_text = extract_conversation_from_user(best_node)
-        asyncio.run(generate_patternized_audio(conversation_text))
+    # Generate audio from the conversation and save it
+    try:
+        save_dir = root_path / "data/audio" / f"{group_id}-{platform_id}"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_path)
+        asyncio.run(generate_patternized_audio(conversation, save_dir))
+        console.log(f"Saved audio from conversation to: {save_path}")
+    except Exception as e:
+        console.log(e)
 
-    if command == "plot":
-        """Plot tSNE embeddings and edge distribution."""
-        console.log("Plotting tSNE embedding clustering...")
-        embeddings = [np.array(user.conversation_embedding).reshape(1, -1) for user in users]
-        names = []
-        for user in users:
-            parts = user.id.split("-")
-            name = parts[2]
-            names.append(name)
 
-        fig = plot_tSNE_embeddings(embeddings, 2, names, 15)
-        save_path = os.path.join(root_path, "data/plots", "tSNE_embeddings.png")
-        fig.savefig(save_path)
-        console.log(f"Saved tSNE plot to: {save_path}")
+@app.command()
+def network(
+    number_of_users: Annotated[
+        int, typer.Option("-n", "--number", help="number of users to select based on interaction time")
+    ] = -1,
+) -> None:
+    """Constuct and save network from all users"""
+    users = get_users(group_id, platform_id, upper_bound_users=number_of_users)
+    edges, edge_weights = compute_graph_from_users(users)
+    construct_and_save_network(edges, edge_weights)
 
-        fig = plot_3d_pca_embeddings(users, names)
-        save_path = os.path.join(root_path, "data/plots", "PCA_embeddings.png")
-        fig.savefig(save_path)
-        console.log(f"Saved 3d-PCA plot to: {save_path}")
 
-        fig = plot_edge_distribution(distances)
-        save_path = os.path.join(root_path, "data/plots", "edge_distribution.png")
-        fig.savefig(save_path)
-        console.log(f"Saved edge distribution plot to: {save_path}")
+@app.command()
+def plot(delta_seconds: Annotated[int, typer.Option("-t", "--time", help="time window in seconds")] = -1) -> None:
+    """Plot tSNE embeddings, 3D PCA embeddings and edge distribution to data/plots/{group_id}-{platform_id}"""
+    console.log("Plotting tSNE embedding clustering...")
+    users = get_users(group_id, platform_id, last_user_update_delta_seconds=delta_seconds)
+    distances = calculate_distances_between_users(users)
+    embeddings = [np.array(user.conversation_embedding).reshape(1, -1) for user in users]
+    names = []
+    for user in users:
+        parts = user.id.split("-")
+        name = parts[2]
+        names.append(name)
 
+    fig = plot_tSNE_embeddings(embeddings, 2, names, 15)
+    save_dir = root_path / "data/plots" / f"{group_id}-{platform_id}"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path = save_dir / "tSNE_embeddings.png"
+    fig.savefig(save_path)
+    console.log(f"Saved tSNE plot to: {save_path}")
+
+    fig = plot_3d_pca_embeddings(users, names)
+    save_path = save_dir / "PCA_embeddings.png"
+    fig.savefig(save_path)
+    console.log(f"Saved 3d-PCA plot to: {save_path}")
+
+    fig = plot_edge_distribution(distances)
+    save_path = save_dir / "edge_distribution.png"
+    fig.savefig(save_path)
+    console.log(f"Saved edge distribution plot to: {save_path}")
+
+
+@app.command(name="save-local")
+def save_local(
+    replace_flag: Annotated[bool, typer.Option("-r", "--replace", help="save local images to data/images")] = False,
+    number_of_users: Annotated[int, typer.Option("-n", "--number", help="number of users to save")] = 15,
+) -> None:
+    """Save images, network and videos locally."""
+    users = get_users(group_id, platform_id, upper_bound_users=number_of_users)
+
+    # Network
+    console.log("Computing network graph to save...")
+    edges, edge_weights = compute_graph_from_users(users)
+    construct_and_save_network(edges, edge_weights)
+
+    # Images
+    save_dir = root_path / "data/images" / f"{group_id}-{platform_id}"
+    # Delete the existing directory
+    if replace_flag:
+        if os.path.exists(save_dir):
+            os.system(f"rm -r {save_dir}")
+            console.log(f"[red]Deleted existing directory:[/] {save_dir}")
+
+    relative_dir = Path("data/images") / f"{group_id}-{platform_id}"
+    console.log(f"Saving images to local directory: {relative_dir} for {len(users)} users")
+    for user in users:
+        try:
+            image = return_image_from_user(user)
+            # make a directory in data/images if it doesn't exist
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            # Save the image to a file
+            save_path = save_dir / f"{user.id}.png"
+            relative_save_path = relative_dir / f"{user.id}.png"
+            image.save(save_path)
+            console.log(f"[green]Saved image to[/]: {relative_save_path}")
+        except Exception as e:
+            console.log(e)
+
+    # Videos
+    save_dir = root_path / "data/videos" / f"{group_id}-{platform_id}"
     console.log("Done!")
+
+
+@app.command()
+def version() -> None:
+    """Print the version of the package."""
+    from svaeva_evaluation import version
+
+    console.print(f"[yellow]svaeva-evaluation[/] version: [bold blue]{version}[/]")
+    raise typer.Exit()
 
 
 if __name__ == "__main__":
     app()
+
+
+# @app.command()
+# def transfer() -> None:
+#     # load video
+#     video_path = root_path / "data/videos" / "video.mp4"
+#     # load as bytes
+#     with open(video_path, "rb") as file:
+#         video_bytes = file.read()
+
+#     users = get_users(group_id, platform_id)
+
+#     for user in users[0:1]:
+#         user_id = user.id
+#         print(f"Transferring user {user_id} to UserVideoModel")
+#         user_video = UserVideoModel(
+#             id=user_id, avatar_video_bytes=[video_bytes], group_id=group_id, platform_id=platform_id
+#         )
+#         user_video.save()
+#         video_bytes_list = user_video.avatar_video_bytes
+#         video_bytes = video_bytes_list[0]
+
+#         # save the video to a file
+#         save_path = root_path / "data/videos" / f"{group_id}-{platform_id}" / f"{user_id}.mp4"
+#         if not os.path.exists(save_path.parent):
+#             os.makedirs(save_path.parent)
+
+#         with open(save_path, "wb") as f:
+#             f.write(video_bytes)
+#         console.log(f"Saved video to: {save_path}")
+
+
+# # @app.command()
+# # def video() -> None:

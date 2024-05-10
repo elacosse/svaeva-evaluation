@@ -1,14 +1,19 @@
 # load environment variables
+import logging
 import os
 
 import dotenv
-import openai
-from conversation_clustering.conversation import conversation_summarizer
-from dotenv import find_dotenv, load_dotenv
+from rich.logging import RichHandler
 
 dotenv.load_dotenv()
 
 RANDOM_SEED = os.getenv("RANDOM_SEED", 42)
+# Enable logging
+# logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+FORMAT = "%(message)s"
+logging.basicConfig(level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()])
+logger = logging.getLogger("schedulers - server")
+dotenv.load_dotenv(dotenv.find_dotenv())
 
 
 def load_text_file(file_path):
