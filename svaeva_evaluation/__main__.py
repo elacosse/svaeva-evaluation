@@ -1,6 +1,7 @@
 # type: ignore[attr-defined]
 import asyncio
 import datetime
+import json
 import os
 import re
 from pathlib import Path
@@ -120,10 +121,17 @@ def construct_and_save_network(edges: list, edge_weights: list) -> Network:
         os.makedirs(save_path.parent)
     network.save_graph(str(save_path))
     console.log(f"[green]Saved[/] network visualization to: {save_path}")
+
     # save network as a json
+    network_json_string = str(network)
+    data = json.loads(network_json_string)
+    # add id key to each node
+    modified_nodes = [{"id": node} for node in data["Nodes"]]
+    data["Nodes"] = modified_nodes
+    modified_json_string = json.dumps(data, indent=4)
     save_path = root_path / "data/network" / f"{group_id}-{platform_id}" / "network.json"
     with open(save_path, "w") as f:
-        f.write(str(network))
+        f.write(modified_json_string)
     console.log(f"[green]Saved[/] graph to: {save_path}")
 
 
@@ -243,17 +251,18 @@ def select(
         conversation = extract_conversation_from_user(user_id)
         with open(save_path, "w") as f:
             f.write(conversation)
-        console.log(f"Saved conversation from user {user_id} to: {save_path}")
-    except Exception as e:
-        console.log(e)
+            console.log(f"Saved conversation from user {user_id} to: {save_path}")
 
-    # Generate audio from the conversation and save it
-    try:
-        save_dir = root_path / "data/audio" / f"{group_id}-{platform_id}"
-        if not os.path.exists(save_dir):
-            os.makedirs(save_path)
-        asyncio.run(generate_patternized_audio(conversation, save_dir))
-        console.log(f"Saved audio from conversation to: {save_path}")
+        # Generate audio from the conversation and save it
+        try:
+            save_dir = root_path / "data/audio" / f"{group_id}-{platform_id}"
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            asyncio.run(generate_patternized_audio(conversation, save_dir))
+            console.log(f"Saved audio from conversation to: {save_dir}")
+        except Exception as e:
+            console.log(e)
+
     except Exception as e:
         console.log(e)
 
@@ -355,36 +364,6 @@ def version() -> None:
 
 if __name__ == "__main__":
     app()
-
-
-# @app.command()
-# def transfer() -> None:
-#     # load video
-#     video_path = root_path / "data/videos" / "video.mp4"
-#     # load as bytes
-#     with open(video_path, "rb") as file:
-#         video_bytes = file.read()
-
-#     users = get_users(group_id, platform_id)
-
-#     for user in users[0:1]:
-#         user_id = user.id
-#         print(f"Transferring user {user_id} to UserVideoModel")
-#         user_video = UserVideoModel(
-#             id=user_id, avatar_video_bytes=[video_bytes], group_id=group_id, platform_id=platform_id
-#         )
-#         user_video.save()
-#         video_bytes_list = user_video.avatar_video_bytes
-#         video_bytes = video_bytes_list[0]
-
-#         # save the video to a file
-#         save_path = root_path / "data/videos" / f"{group_id}-{platform_id}" / f"{user_id}.mp4"
-#         if not os.path.exists(save_path.parent):
-#             os.makedirs(save_path.parent)
-
-#         with open(save_path, "wb") as f:
-#             f.write(video_bytes)
-#         console.log(f"Saved video to: {save_path}")
 
 
 # # @app.command()
