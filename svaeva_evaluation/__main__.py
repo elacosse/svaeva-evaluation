@@ -1,5 +1,6 @@
 # type: ignore[attr-defined]
 import asyncio
+import base64
 import datetime
 import json
 import os
@@ -32,7 +33,7 @@ from svaeva_evaluation.visualization.plotting import (
 )
 
 dotenv.load_dotenv()
-from svaeva_redux.schemas.redis import UserModel
+from svaeva_redux.schemas.redis import UserModel, UserVideoModel
 
 DEFAULT_MESSAGE = "This is Consonância. You're invited to enter the room of healing algorithms for something special. Please type or click with /iamready if you accept this invitation. You have 10 minutes to accept this invitation."
 platform_id = os.getenv("PLATFORM_ID")
@@ -315,6 +316,7 @@ def plot(delta_seconds: Annotated[int, typer.Option("-t", "--time", help="time w
 def save_local(
     replace_flag: Annotated[bool, typer.Option("-r", "--replace", help="save local images to data/images")] = False,
     number_of_users: Annotated[int, typer.Option("-n", "--number", help="number of users to save")] = 15,
+    save_video_flag: Annotated[bool, typer.Option("-v", "--video", help="save video to data/videos")] = False,
 ) -> None:
     """Save images, network and videos locally."""
     users = get_users(group_id, platform_id, upper_bound_users=number_of_users)
@@ -349,8 +351,42 @@ def save_local(
             console.log(e)
 
     # Videos
-    save_dir = root_path / "data/videos" / f"{group_id}-{platform_id}"
+    if save_video_flag:
+        console.log("Saving videos to local directory...")
+        save_dir = root_path / "data/videos" / f"{group_id}-{platform_id}"
+        relative_dir = Path("data/videos") / f"{group_id}-{platform_id}"
+        for user in users:
+            video_user = UserVideoModel.get(user.id)
+            video_bytes = video_user.avatar_video_bytes
+            video_path = save_dir / f"{video_user.id}.mp4"
+            with open(video_path, "wb") as f:
+                f.write(base64.b64decode(video_bytes))
+            console.log(f"[green]Saved video to[/]: {relative_dir / f'{video_user.id}.mp4'}")
+
     console.log("Done!")
+
+
+@app.command()
+def video() -> None:
+    # video_users = UserVideoModel.find(
+    #     (UserVideoModel.group_id == group_id) & (UserVideoModel.platform_id == platform_id)
+    # ).all()
+    # for video_user in video_users:
+    #     video_user.delete()
+    users = get_users(group_id, platform_id)
+    video_path = (
+        "/Users/eric/Library/CloudStorage/Dropbox/git/github/svaeva/svaeva_eric/svaeva-evaluation/data/videos/video.mp4"
+    )
+    # load video
+    with open(video_path, "rb") as f:
+        video_bytes = base64.b64encode(f.read()).decode("utf-8")
+    for user in users:
+        print(user.id)
+        video_user = UserVideoModel(
+            id=user.id,
+            avatar_video_bytes=video_bytes,
+        )
+        video_user.save()
 
 
 @app.command()
@@ -364,7 +400,3 @@ def version() -> None:
 
 if __name__ == "__main__":
     app()
-
-
-# # @app.command()
-# # def video() -> None:
