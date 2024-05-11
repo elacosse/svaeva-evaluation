@@ -316,6 +316,7 @@ def plot(delta_seconds: Annotated[int, typer.Option("-t", "--time", help="time w
 def save_local(
     replace_flag: Annotated[bool, typer.Option("-r", "--replace", help="save local images to data/images")] = False,
     number_of_users: Annotated[int, typer.Option("-n", "--number", help="number of users to save")] = 15,
+    crop_image_flag: Annotated[bool, typer.Option("-c", "--crop", help="crop image to circle")] = False,
     save_video_flag: Annotated[bool, typer.Option("-v", "--video", help="save video to data/videos")] = False,
 ) -> None:
     """Save images, network and videos locally."""
@@ -338,7 +339,7 @@ def save_local(
     console.log(f"Saving images to local directory: {relative_dir} for {len(users)} users")
     for user in users:
         try:
-            image = return_image_from_user(user)
+            image = return_image_from_user(user, crop=crop_image_flag)
             # make a directory in data/images if it doesn't exist
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
