@@ -355,6 +355,8 @@ def save_local(
     if save_video_flag:
         console.log("Saving videos to local directory...")
         save_dir = root_path / "data/videos" / f"{group_id}-{platform_id}"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
         relative_dir = Path("data/videos") / f"{group_id}-{platform_id}"
         for user in users:
             video_user = UserVideoModel.get(user.id)
