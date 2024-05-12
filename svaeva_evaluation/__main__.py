@@ -16,8 +16,13 @@ from pyvis.network import Network
 from rich.console import Console
 from typing_extensions import Annotated
 
-from svaeva_evaluation.audio.generate import async_generate_audio_from_list
-from svaeva_evaluation.conversation import retrieve_redis_windowed_chat_history_as_text
+from svaeva_evaluation.audio.generate import async_generate, async_generate_audio_from_list
+from svaeva_evaluation.conversation import (
+    construct_introduction_narrative,
+    construct_word_narrative_with_hurt,
+    construct_word_narrative_without_hurt,
+    retrieve_redis_windowed_chat_history_as_text,
+)
 from svaeva_evaluation.messaging import queue_message_to_user
 from svaeva_evaluation.network import (
     calculate_distances_between_users,
@@ -69,9 +74,6 @@ def extract_conversation_from_user(
     user_id: str,
 ) -> str:
     """Extract the conversation from a user object."""
-
-    from svaeva_redux.schemas.redis import UserModel
-
     try:
         _ = UserModel.get(user_id)
     except Exception as e:
@@ -93,20 +95,30 @@ def patternize_list(input_list):
     return pattern_list
 
 
-async def generate_patternized_audio(conversation_text: str, save_dir: Path):
-    from svaeva_evaluation.conversation import (
-        construct_word_narrative_with_hurt,
-        construct_word_narrative_without_hurt,
-    )
+async def async_generate_introduction_audio(
+    user: UserModel, conversation_text: str, save_dir: Path, voice_id="Emily"
+) -> None:
+    """Generate a personalized audio narrative for room experience introduction."""
 
+    text = construct_introduction_narrative(user, conversation_text)
+    # Save introduction narrative to user????? TODO
+    save_path = save_dir / "introduction_narrative.mp3"
+    await async_generate(text, voice_id, save_path=save_path)
+
+
+async def async_generate_audio(user: UserModel, conversation_text: str, save_dir: Path, voice_id="Emily"):
+    # introduction audio
+    await async_generate_introduction_audio(user, conversation_text, save_dir, voice_id)
+
+    # patternized audio
     word_narrative_positive = construct_word_narrative_without_hurt(conversation_text)
     console.log(f"[green]Joy narrative: {word_narrative_positive} [/]")
     word_narrative_negative = construct_word_narrative_with_hurt(conversation_text)
     console.log(f"[red]Hurt narrative: {word_narrative_negative} [/]")
     list_text = patternize_list(word_narrative_positive)
-    await async_generate_audio_from_list(list_text, "Emily", "positive", save_dir)
+    await async_generate_audio_from_list(list_text, voice_id, "positive", save_dir)
     list_text = patternize_list(word_narrative_negative)
-    await async_generate_audio_from_list(list_text, "Emily", "negative", save_dir)
+    await async_generate_audio_from_list(list_text, voice_id, "negative", save_dir)
 
 
 def construct_and_save_network(edges: list, edge_weights: list) -> Network:
@@ -254,15 +266,13 @@ def select(
             f.write(conversation)
             console.log(f"Saved conversation from user {user_id} to: {save_path}")
 
-        # Generate audio from the conversation and save it
-        try:
-            save_dir = root_path / "data/audio" / f"{group_id}-{platform_id}"
-            if not os.path.exists(save_dir):
-                os.makedirs(save_dir)
-            asyncio.run(generate_patternized_audio(conversation, save_dir))
-            console.log(f"Saved audio from conversation to: {save_dir}")
-        except Exception as e:
-            console.log(e)
+        # Audio
+        save_dir = root_path / "data/audio" / f"{group_id}-{platform_id}"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        # Generate audio rom the conversation and save it
+        asyncio.run(async_generate_audio(user, conversation, save_dir))
+        console.log(f"Saved audio from conversation to: {save_dir}")
 
     except Exception as e:
         console.log(e)

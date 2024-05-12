@@ -2,6 +2,9 @@ from typing import List
 
 import openai
 from svaeva_redux.langchain.redis import RedisChatMessageHistoryWindowed  # noqa
+from svaeva_redux.schemas.redis import UserModel
+
+from svaeva_evaluation.prompts.consonancia import introduction_audio_narrative
 
 
 def retrieve_redis_windowed_chat_history_as_text(
@@ -35,6 +38,29 @@ def retrieve_redis_windowed_chat_history_as_text(
             text = f"{AI_NAME}: " + message.content
         conversation += text + "\n"
     return conversation
+
+
+def construct_introduction_narrative(user: UserModel, conversation: str, save_to_user: bool = True) -> str:
+    """Maps conversation into a narrative that will be played for room experience"""
+    SYSTEM_PROMPT = introduction_audio_narrative
+
+    # if they have a name they shared with us, we can use it in the prompt
+    if user.first_name is not None:
+        USER_PROMPT_TEMPLATE = f"Create a short introduction for {user.first_name} welcoming them by name to be read aloud based on the following conversation they had with an interviewer: \n\n{conversation}"
+    else:
+        USER_PROMPT_TEMPLATE = f"Create a short introduction (call them our unique visitor) to be read aloud based on the following conversation they had with an interviewer: \n\n{conversation}"
+    client = openai.OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": USER_PROMPT_TEMPLATE.format(conversation=conversation)},
+        ],
+    )
+    response_content = str(response.choices[0].message.content)
+    if save_to_user:
+        user.introduction_narrative = response_content
+    return response_content
 
 
 def conversation_summarizer(conversation: str) -> str:
