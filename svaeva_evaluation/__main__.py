@@ -14,7 +14,6 @@ import redis
 import typer
 from pyvis.network import Network
 from rich.console import Console
-from svaeva_redux.schemas.redis import UserModel, UserVideoModel
 from typing_extensions import Annotated
 
 from svaeva_evaluation.audio.generate import async_generate, async_generate_audio_from_list
@@ -39,7 +38,10 @@ from svaeva_evaluation.visualization.plotting import (
 )
 
 dotenv.load_dotenv(override=True)
-DEFAULT_MESSAGE = "This is Consonância. You're invited to enter the room of healing algorithms for something special. Please type or click with /iamready if you accept this invitation. You have 10 minutes to accept this invitation."
+from svaeva_redux.schemas.redis import UserModel, UserVideoModel
+
+DEFAULT_MESSAGE = "This is Consonância. You're invited to enter the room of healing algorithms for something special. Please type or click with /iamready if you accept this invitation. You have 7 minutes to accept this invitation."
+DISTANCE_METRIC = "cosine"
 platform_id = os.getenv("PLATFORM_ID")
 group_id = os.getenv("GROUP_ID")
 conversation_id = os.getenv("CONVERSATION_ID")
@@ -57,6 +59,8 @@ console.log(f"Root path: {root_path}")
 console.log("[red]Redis Host[/]: " + os.environ["REDIS_HOST"])
 console.log("[red]Redis OM URL[/]: " + os.environ["REDIS_OM_URL"])
 console.log(f"[yellow]Group ID[/]: {group_id}")
+console.log(f"[yellow]Platform ID[/]: {platform_id}")
+console.log(f"[yellow]Conversation ID[/]: {conversation_id}")
 console.log(f"[yellow]Key Prefix[/]: {key_prefix}")
 
 # make sure the redis connection is working
@@ -120,9 +124,11 @@ async def async_generate_audio(user: UserModel, conversation_text: str, save_dir
     await async_generate_audio_from_list(list_text, voice_id, "negative", save_dir)
 
 
-def construct_and_save_network(edges: list, edge_weights: list) -> Network:
+def construct_and_save_network(edges: list, edge_weights: list, min_edge_distance: float = 0.05) -> Network:
     for edge in edges:  # normalize edge weights
         edge["distance"] = (edge["distance"] - min(edge_weights)) / (max(edge_weights) - min(edge_weights))
+        if edge["distance"] == 0:
+            edge["distance"] = min_edge_distance  # avoid zero distance
 
     network = Network(height="750px", width="100%", bgcolor="#222222", font_color="white")
     nx_graph = generate_network_from_edges(edges)
@@ -153,6 +159,7 @@ def get_users(
     interaction_count: int = -1,
     last_user_update_delta_seconds: float = -1,
     upper_bound_users: int = -1,
+    ensure_embedding: bool = False,
 ) -> List[UserModel]:
     users = UserModel.find(
         (UserModel.group_id == group_id)
@@ -176,15 +183,21 @@ def get_users(
         # convert to datetime
         time_window = datetime.timedelta(seconds=time_window)
         console.log(f"[red]Time window[/] (days, seconds, microseconds): {time_window}")
+
+    if ensure_embedding:
+        for i, user in enumerate(users):
+            if user.conversation_embedding is None:
+                # remove user from list
+                users.pop(i)
+
     console.log(f"Number of users retrieved: {len(users)}")
     return users
 
 
-def compute_graph_from_users(users: List[UserModel]) -> List[dict]:
+def compute_graph_from_users(users: List[UserModel], distance_metric: str = "euclidean") -> List[dict]:
     console.log("Calculating distances between user conversation embeddings...")
 
-    distances = calculate_distances_between_users(users)
-
+    distances = calculate_distances_between_users(users, distance_metric=distance_metric)
     # select the lowest 10% of edge weights as threshold
     edge_weights = []
     for distance in distances:
@@ -225,9 +238,9 @@ def display_by_rank(
     """Select the best connected node and save the conversation to a file by rank."""
     if delta_seconds > 0:
         console.log(f"Selecting users with last update within {delta_seconds} seconds...")
-    users = get_users(group_id, platform_id, last_user_update_delta_seconds=delta_seconds)
+    users = get_users(group_id, platform_id, last_user_update_delta_seconds=delta_seconds, ensure_embedding=True)
     if len(users) > 1:
-        edges, _ = compute_graph_from_users(users)
+        edges, _ = compute_graph_from_users(users, distance_metric=DISTANCE_METRIC)
         best_nodes = select_best_connected_nodes(edges, num=number_of_users)
         # display if user was flagged already
         for i, node in enumerate(best_nodes):
@@ -285,7 +298,7 @@ def network(
 ) -> None:
     """Constuct and save network from all users"""
     users = get_users(group_id, platform_id, upper_bound_users=number_of_users)
-    edges, edge_weights = compute_graph_from_users(users)
+    edges, edge_weights = compute_graph_from_users(users, distance_metric=DISTANCE_METRIC)
     construct_and_save_network(edges, edge_weights)
 
 
@@ -333,7 +346,7 @@ def save_local(
 
     # Network
     console.log("Computing network graph to save...")
-    edges, edge_weights = compute_graph_from_users(users)
+    edges, edge_weights = compute_graph_from_users(users, distance_metric=DISTANCE_METRIC)
     construct_and_save_network(edges, edge_weights)
 
     # Images
@@ -411,4 +424,7 @@ def version() -> None:
 
 
 if __name__ == "__main__":
+    dotenv.load_dotenv(override=True)
+
+    print(os.getenv("REDIS_HOST"))
     app()

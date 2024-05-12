@@ -49,14 +49,15 @@ def calculate_distances(nodes: List[dict], distance_metric: str = "euclidean") -
                 distance = np.linalg.norm(vector_x - vector_y)
             elif distance_metric == "cosine":
                 distance = 1 - np.dot(vector_x, vector_y) / (np.linalg.norm(vector_x) * np.linalg.norm(vector_y))
-
             distance_info["distance"][str(other_id)] = distance
         distances.append(distance_info)
 
     return distances
 
 
-def calculate_distances_between_users(users: UserModel, cluster_ids: Union[Dict[str, int], None] = None):
+def calculate_distances_between_users(
+    users: UserModel, cluster_ids: Union[Dict[str, int], None] = None, distance_metric: str = "euclidean"
+):
     """Calculate distances between users.
 
     Args:
@@ -76,8 +77,7 @@ def calculate_distances_between_users(users: UserModel, cluster_ids: Union[Dict[
             cluster_id = 0
         nodes.append({"id": user.id, "embedding": np.array(user.conversation_embedding), "cluster_id": cluster_id})
 
-    distances = calculate_distances(nodes)
-
+    distances = calculate_distances(nodes, distance_metric=distance_metric)
     return distances
 
 
@@ -103,7 +103,7 @@ def generate_network_from_edges(edges: List[dict]) -> nx.Graph:
             G.add_node(source)
         if target not in G.nodes:
             G.add_node(target)
-        G.add_edge(source, target, weight=1 / weight)
+        G.add_edge(source, target, weight=(1.0 / weight))
     return G
 
 
