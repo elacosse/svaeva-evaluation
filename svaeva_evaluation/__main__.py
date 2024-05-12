@@ -307,7 +307,7 @@ def plot(delta_seconds: Annotated[int, typer.Option("-t", "--time", help="time w
     """Plot tSNE embeddings, 3D PCA embeddings and edge distribution to data/plots/{group_id}-{platform_id}"""
     console.log("Plotting tSNE embedding clustering...")
     users = get_users(group_id, platform_id, last_user_update_delta_seconds=delta_seconds)
-    distances = calculate_distances_between_users(users)
+    distances = calculate_distances_between_users(users, distance_metric=DISTANCE_METRIC)
     embeddings = [np.array(user.conversation_embedding).reshape(1, -1) for user in users]
     names = []
     for user in users:
