@@ -14,6 +14,7 @@ import redis
 import typer
 from pyvis.network import Network
 from rich.console import Console
+from svaeva_redux.schemas.redis import UserModel, UserVideoModel
 from typing_extensions import Annotated
 
 from svaeva_evaluation.audio.generate import async_generate, async_generate_audio_from_list
@@ -37,9 +38,7 @@ from svaeva_evaluation.visualization.plotting import (
     return_image_from_user,
 )
 
-dotenv.load_dotenv()
-from svaeva_redux.schemas.redis import UserModel, UserVideoModel
-
+dotenv.load_dotenv(override=True)
 DEFAULT_MESSAGE = "This is Consonância. You're invited to enter the room of healing algorithms for something special. Please type or click with /iamready if you accept this invitation. You have 10 minutes to accept this invitation."
 platform_id = os.getenv("PLATFORM_ID")
 group_id = os.getenv("GROUP_ID")

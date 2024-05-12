@@ -131,14 +131,19 @@ def return_image_from_user(user: UserModel, crop=False) -> Image.Image:
     try:
         user_image = UserImageModel.get(user.id)
         image = Image.open(io.BytesIO(base64.b64decode(user_image.avatar_image_bytes)))
+
         if crop:
             image = np.array(image)
+            # add alpha channel to numpy array
             h, w = image.shape[:2]
+            rbga_image = np.empty((h, w, 4), dtype=np.uint8)
+            rbga_image[:, :, :3] = image
+            rbga_image[:, :, 3] = 255
             mask = np.zeros((h, w), dtype=np.uint8)
-            cv2.circle(mask, (w // 2, h // 2), int(0.45 * h), 255, -1)
-            result = cv2.bitwise_and(image, image, mask=mask)
-            image = Image.fromarray(result)
+            cv2.circle(mask, (w // 2, h // 2), int(0.5 * h), 255, -1)
+            rbga_image[mask == 0] = 0
+            image = Image.fromarray(rbga_image)
         return image
     except Exception as e:
         print(f"Error: {e}")
-        return None
+        return Image.new("RGBA", (100, 100), (0, 0, 0, 0))
