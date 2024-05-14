@@ -153,6 +153,31 @@ def construct_and_save_network(edges: list, edge_weights: list, min_edge_distanc
     console.log(f"[green]Saved[/] graph to: {save_path}")
 
 
+def conversation_quality_check(user: UserModel, word_count_lower_bount: int = 25) -> bool:
+    """Check the quality of the conversation using heuristics.
+
+    Args:
+        user (UserModel): User object
+
+    Returns:
+        bool: True if the conversation is of high quality, False otherwise
+    """
+    key_prefix = f"{os.getenv('PLATFORM_ID')}_{os.getenv('CONVERSATION_ID')}:"
+    chat_history_length = 30
+    conversation = retrieve_redis_windowed_chat_history_as_text(
+        user.id, os.getenv("REDIS_OM_URL"), key_prefix, chat_history_length
+    )
+    # Check if the conversation is lengthy enough
+    conversation_text = ""
+    for message in conversation:
+        conversation_text += message["text"] + " "
+    word_num = len(conversation_text.split())
+    print(word_num)
+    if word_num < word_count_lower_bount:
+        return False
+    return True
+
+
 def get_users(
     group_id: str,
     platform_id: str,
@@ -160,7 +185,24 @@ def get_users(
     last_user_update_delta_seconds: float = -1,
     upper_bound_users: int = -1,
     ensure_embedding: bool = False,
+    ensure_quality: bool = False,
 ) -> List[UserModel]:
+    """Get users from the database.
+
+    Args:
+        group_id (str): Group ID
+        platform_id (str): Platform ID
+        interaction_count (int, optional): Interaction count. Defaults to -1.
+        last_user_update_delta_seconds (float, optional): Last user update delta in seconds. Defaults to -1.
+        upper_bound_users (int, optional): Upper bound of users. Defaults to -1.
+        ensure_embedding (bool, optional): Ensure embedding. Defaults to False.
+        ensure_quality (bool, optional): Ensure quality of conversation. Defaults to False.
+    Returns:
+        List[UserModel]: List of users
+
+
+    """
+
     users = UserModel.find(
         (UserModel.group_id == group_id)
         & (UserModel.platform_id == platform_id)
@@ -188,6 +230,12 @@ def get_users(
         for i, user in enumerate(users):
             if user.conversation_embedding is None:
                 # remove user from list
+                users.pop(i)
+
+    # Check quality of conversations...
+    if ensure_quality:
+        for i, user in enumerate(users):
+            if not conversation_quality_check(user):
                 users.pop(i)
 
     console.log(f"Number of users retrieved: {len(users)}")
@@ -412,6 +460,14 @@ def video() -> None:
             avatar_video_bytes=video_bytes,
         )
         video_user.save()
+
+
+@app.command()
+def active_users(name="active-users"):
+    """Get the active users."""
+    users = get_users(group_id, platform_id)
+    for user in users:
+        console.log(f"{user.id} - {user.interaction_count}")
 
 
 @app.command()
