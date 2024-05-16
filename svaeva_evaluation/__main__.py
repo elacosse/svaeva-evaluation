@@ -4,7 +4,6 @@ import base64
 import datetime
 import json
 import os
-import re
 from pathlib import Path
 from typing import List
 
@@ -16,7 +15,7 @@ from pyvis.network import Network
 from rich.console import Console
 from typing_extensions import Annotated
 
-from svaeva_evaluation.audio.generate import async_generate, async_generate_audio_from_list
+from svaeva_evaluation.audio.generate import async_generate, async_generate_audio_from_list, patternize_list
 from svaeva_evaluation.conversation import (
     construct_introduction_narrative,
     construct_word_narrative_with_hurt,
@@ -91,13 +90,6 @@ def extract_conversation_from_user(
     return conversation
 
 
-def patternize_list(input_list):
-    pattern = re.compile(r"[\d\.]+")
-    filtered_list = [pattern.sub("", word) for word in input_list]
-    pattern_list = [" ... ".join([word] * 3) for word in filtered_list]
-    return pattern_list
-
-
 async def async_generate_introduction_audio(
     user: UserModel, conversation_text: str, save_dir: Path, voice_id="Emily"
 ) -> None:
@@ -106,7 +98,7 @@ async def async_generate_introduction_audio(
     text = construct_introduction_narrative(user, conversation_text)
     # Save introduction narrative to user????? TODO
     save_path = save_dir / "introduction_narrative.mp3"
-    await async_generate(text, voice_id, save_path=save_path)
+    await async_generate(text, save_path, voice_id)
 
 
 async def async_generate_audio(user: UserModel, conversation_text: str, save_dir: Path, voice_id="Emily"):
@@ -119,9 +111,9 @@ async def async_generate_audio(user: UserModel, conversation_text: str, save_dir
     word_narrative_negative = construct_word_narrative_with_hurt(conversation_text)
     console.log(f"[red]Hurt narrative: {word_narrative_negative} [/]")
     list_text = patternize_list(word_narrative_positive)
-    await async_generate_audio_from_list(list_text, voice_id, "positive", save_dir)
+    await async_generate_audio_from_list(list_text, "randomize", "positive", save_dir)
     list_text = patternize_list(word_narrative_negative)
-    await async_generate_audio_from_list(list_text, voice_id, "negative", save_dir)
+    await async_generate_audio_from_list(list_text, "randomize", "negative", save_dir)
 
 
 def construct_and_save_network(edges: list, edge_weights: list, min_edge_distance: float = 0.05) -> Network:
@@ -168,11 +160,7 @@ def conversation_quality_check(user: UserModel, word_count_lower_bount: int = 25
         user.id, os.getenv("REDIS_OM_URL"), key_prefix, chat_history_length
     )
     # Check if the conversation is lengthy enough
-    conversation_text = ""
-    for message in conversation:
-        conversation_text += message["text"] + " "
-    word_num = len(conversation_text.split())
-    print(word_num)
+    word_num = len(conversation.split())
     if word_num < word_count_lower_bount:
         return False
     return True
@@ -264,6 +252,22 @@ def compute_graph_from_users(users: List[UserModel], distance_metric: str = "euc
 
 @app.command()
 def message(
+    user_id: Annotated[str, typer.Argument(help="user-id to select")],
+    user_message: Annotated[
+        str, typer.Option(..., "-m", "--message", help="message to send to user.")
+    ] = DEFAULT_MESSAGE,
+):
+    """Message a user by their user-id."""
+    try:
+        _ = UserModel.get(user_id)
+    except Exception as e:
+        console.log(f"An error occurred: {e}")
+        return
+    queue_message_to_user(user_id, user_message, "message_processing_queue")
+
+
+@app.command("invite-to-other-bot")
+def invite_to_other_bot(
     user_id: Annotated[str, typer.Argument(help="user-id to select")],
     user_message: Annotated[
         str, typer.Option(..., "-m", "--message", help="message to send to user.")
@@ -388,9 +392,13 @@ def save_local(
     number_of_users: Annotated[int, typer.Option("-n", "--number", help="number of users to save")] = 15,
     crop_image_flag: Annotated[bool, typer.Option("-c", "--crop", help="crop image to circle")] = False,
     save_video_flag: Annotated[bool, typer.Option("-v", "--video", help="save video to data/videos")] = False,
+    quality_flag: Annotated[bool, typer.Option("-q", "--quality", help="check for quality before save")] = False,
 ) -> None:
     """Save images, network and videos locally."""
-    users = get_users(group_id, platform_id, upper_bound_users=number_of_users)
+    users = get_users(
+        group_id, platform_id, upper_bound_users=number_of_users, ensure_embedding=True, ensure_quality=quality_flag
+    )
+    console.log(f"Retrieved {len(users)} from DB")
 
     # Network
     console.log("Computing network graph to save...")
