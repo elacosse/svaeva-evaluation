@@ -197,7 +197,7 @@ def get_users(
         & (UserModel.interaction_count >= interaction_count)
     ).all()
     if last_user_update_delta_seconds > 0:
-        time_lower_bound = datetime.now().timestamp() - last_user_update_delta_seconds
+        time_lower_bound = datetime.datetime.now().timestamp() - last_user_update_delta_seconds
         users = UserModel.find(
             (UserModel.group_id == group_id)
             & (UserModel.platform_id == platform_id)
